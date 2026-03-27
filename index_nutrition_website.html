@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NutriSnap Ultra | Fixed Stash Engine</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root {
+            --p1: #ff7675; --p3: #55efc4; --p5: #a29bfe;
+            --glass: rgba(255, 255, 255, 0.98);
+            --bg: linear-gradient(135deg, #6c5ce7, #a29bfe, #74b9ff, #55efc4);
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; background: var(--bg); background-size: 400% 400%;
+            animation: gradient 15s ease infinite; margin: 0; min-height: 100vh;
+            display: flex; justify-content: center; align-items: center; color: #2d3436;
+        }
+
+        @keyframes gradient { 0% {background-position: 0% 50%;} 50% {background-position: 100% 50%;} 100% {background-position: 0% 50%;} }
+
+        .container { width: 95%; max-width: 600px; padding: 20px; }
+
+        .card {
+            background: var(--glass); padding: 35px; border-radius: 40px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.2); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.4); text-align: center;
+        }
+
+        .screen { display: none; }
+        .active { display: block; animation: slideUp 0.4s ease; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        #reader { width: 100%; border-radius: 24px; overflow: hidden; border: 6px solid white; margin: 20px 0; }
+
+        .bento-grid { 
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; 
+            margin: 20px 0; max-height: 350px; overflow-y: auto; padding: 10px;
+        }
+        .bento-item {
+            background: white; border-radius: 20px; padding: 15px 5px; cursor: pointer;
+            transition: 0.3s; border: 1px solid #eee; display: flex; flex-direction: column; align-items: center;
+        }
+        .bento-item:hover { transform: translateY(-5px); border-color: var(--p5); box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+
+        .vibe-card { background: white; padding: 20px; border-radius: 25px; margin-bottom: 20px; text-align: left; border-left: 10px solid var(--p1); position: relative; }
+        .price-badge { 
+            position: absolute; top: 15px; right: 15px; background: var(--p3); color: #006266; 
+            padding: 8px 15px; border-radius: 50px; font-weight: 900; font-size: 1rem;
+            box-shadow: 0 4px 10px rgba(85, 239, 196, 0.4);
+        }
+        
+        .analysis-display { font-size: 1.1rem; line-height: 1.6; padding: 25px; border-radius: 30px; margin: 20px 0; background: #f8f9ff; border: 2px solid #eef2ff; }
+
+        .btn { background: #2d3436; color: white; border: none; padding: 20px; border-radius: 25px; font-size: 1.1rem; font-weight: 800; width: 100%; cursor: pointer; margin-bottom: 10px; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); }
+        
+        .stash-drawer { margin-top: 20px; text-align: left; font-size: 0.9rem; color: #2d3436; background: rgba(255,255,255,0.6); padding: 20px; border-radius: 30px; border: 1px solid white; }
+        .stash-item { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(0,0,0,0.05); padding: 10px 0; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="home-screen" class="screen active">
+        <div class="card">
+            <h1 style="font-size: 3.8rem; margin: 0; letter-spacing: -3px;">NutriSnap<span style="color:var(--p1)">.</span></h1>
+            <p style="font-weight: 600; color: #636e72; margin-bottom: 30px;">Your Super-Precise Food Diary</p>
+            
+            <button class="btn" onclick="startScanner()" style="background:var(--p1); font-size: 1.3rem;">🚀 SCAN A SNACK</button>
+            
+            <div class="stash-drawer">
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items: center;">
+                    <b style="font-size: 1.2rem;">🛒 Your Stash</b>
+                    <button onclick="clearStash()" style="border:none; background:#ff767522; color:var(--p1); padding: 5px 12px; border-radius: 10px; font-weight:bold; cursor:pointer;">Clear</button>
+                </div>
+                <div id="stash-items">Your stash is empty!</div>
+                <div id="stash-total" style="margin-top:15px; font-weight:900; border-top: 2px solid rgba(0,0,0,0.1); padding-top:10px; font-size: 1.3rem; color: #2d3436;">Total: $0.00</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="scanner-screen" class="screen">
+        <div class="card">
+            <h2 style="margin:0;">Scanning Barcode...</h2>
+            <div id="reader"></div>
+            <button class="btn" style="background:#dfe6e9; color:#2d3436;" onclick="location.reload()">BACK HOME</button>
+        </div>
+    </div>
+
+    <div id="options-screen" class="screen">
+        <div class="card">
+            <div class="vibe-card">
+                <div class="price-badge" id="live-price">$0.00</div>
+                <h2 id="prodName" style="margin:0; width: 60%; font-size: 1.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Product</h2>
+                <div id="prodVibe" style="font-size: 0.95rem; color: #636e72; margin-top: 8px;"></div>
+            </div>
+            
+            <div class="bento-grid" id="grid"></div>
+            
+            <button class="btn" onclick="performStashAdd()" style="background:var(--p3); color:#006266; margin-top: 10px;">✅ ADD TO STASH</button>
+            <button class="btn" style="background:#dfe6e9; color:#2d3436;" onclick="location.reload()">CANCEL</button>
+        </div>
+    </div>
+
+    <div id="detail-screen" class="screen">
+        <div class="card">
+            <div id="detIcon" style="font-size: 6rem;">✨</div>
+            <h2 id="detTitle" style="color: #b2bec3; letter-spacing: 3px; font-size: 1rem;">NUTRIENT</h2>
+            <div id="detValue" style="font-size: 3.5rem; font-weight: 900; margin: 15px 0; color: var(--p1);">0.0000g</div>
+            <div id="detAnalysis" class="analysis-display"></div>
+            <button class="btn" onclick="switchScreen('options-screen')">BACK</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let globalProduct = null;
+    let globalPrice = 0;
+    const html5QrCode = new Html5Qrcode("reader");
+
+    const nutrientMeta = {
+        'energy-kcal_100g': { label: 'Energy', icon: '⚡', unit: 'kcal' },
+        'sugars_100g': { label: 'Sugar', icon: '🍬', unit: 'g' },
+        'proteins_100g': { label: 'Protein', icon: '💪', unit: 'g' },
+        'fat_100g': { label: 'Fats', icon: '🥑', unit: 'g' },
+        'saturated-fat_100g': { label: 'Sat Fat', icon: '🍔', unit: 'g' },
+        'salt_100g': { label: 'Salt', icon: '🧂', unit: 'g' },
+        'carbohydrates_100g': { label: 'Carbs', icon: '🍞', unit: 'g' },
+        'fiber_100g': { label: 'Fiber', icon: '🥦', unit: 'g' },
+        'calcium_100g': { label: 'Calcium', icon: '🦴', unit: 'g' },
+        'iron_100g': { label: 'Iron', icon: '🧲', unit: 'g' }
+    };
+
+    function getAnalysis(id, val) {
+        const p = val.toFixed(4);
+        const map = {
+            'energy-kcal_100g': val > 300 ? `🔥 High-power fuel! At ${p}kcal, this is a dense energy source. Perfect for a busy day!` : `🍃 Light and breezy! Just ${p}kcal makes this a super easy snack choice.`,
+            'sugars_100g': val > 15 ? `🍭 Sugar rush! There's ${p}g here. Super yummy, but watch for that energy dip later!` : `✨ Steady energy. Only ${p}g of sugar means a smooth, crash-free experience!`,
+            'proteins_100g': val > 10 ? `💪 Muscle power! A solid ${p}g of protein helps you stay strong and feel full.` : `🌾 Gentle protein. At ${p}g, it adds a nice little building block to your meal!`,
+            'fat_100g': val > 20 ? `🥑 Rich & Creamy! The ${p}g of fat provides deep flavor, but it's a heavier serving.` : `🍃 Lean profile. With only ${p}g of fat, this stays very light and refreshing.`,
+            'saturated-fat_100g': val > 5 ? `🍔 Heavy richness. ${p}g of saturated fat is quite high. Enjoy this as a special treat!` : `✅ Heart-smart! Just ${p}g of saturated fat keeps this in the healthy zone.`,
+            'salt_100g': val > 1.2 ? `🧂 Savory punch! ${p}g of salt is significant. You might feel a bit thirsty after this!` : `🌊 Lightly seasoned. Only ${p}g of salt lets the natural flavors shine through.`,
+            'carbohydrates_100g': val > 45 ? `🍞 Carb loaded! ${p}g provides plenty of energy for your brain and body.` : `🍃 Low-carb focus. At ${p}g, this won't weigh you down during the day.`,
+            'fiber_100g': val > 5 ? `🥦 Digestive win! ${p}g of fiber is amazing for your gut health. Great choice!` : `✨ Smooth sailing. It has ${p}g of fiber—every little bit helps keep things moving!`,
+            'calcium_100g': val > 0.1 ? `🦴 Bone strength! The ${p}g of calcium here helps build a strong foundation for you.` : `🥛 Trace minerals. At ${p}g of calcium, this adds a tiny hint of support to your day.`,
+            'iron_100g': val > 0.005 ? `🧲 Iron strong! This provides ${p}g of iron, essential for carrying oxygen in your blood.` : `✨ Basic iron. It contains ${p}g—a small but helpful contribution to your health.`
+        };
+        return map[id] || `This contains exactly ${p}g of this nutrient.`;
+    }
+
+    function startScanner() {
+        switchScreen('scanner-screen');
+        html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => {
+            html5QrCode.stop().then(() => fetchProduct(text));
+        });
+    }
+
+    async function fetchProduct(barcode) {
+        try {
+            const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json`);
+            const data = await res.json();
+            if (data.status === 1) {
+                globalProduct = data.product;
+                // Price Locking Logic
+                let priceMap = JSON.parse(localStorage.getItem('prices') || '{}');
+                if (!priceMap[barcode]) {
+                    priceMap[barcode] = (barcode.length % 5) + 1.99 + (Math.random() * 0.5);
+                    localStorage.setItem('prices', JSON.stringify(priceMap));
+                }
+                globalPrice = priceMap[barcode];
+                renderDashboard();
+            } else {
+                alert("Product not found!");
+                location.reload();
+            }
+        } catch (e) { alert("Error connecting to database."); }
+    }
+
+    function renderDashboard() {
+        document.getElementById('live-price').innerText = `$${globalPrice.toFixed(2)}`;
+        document.getElementById('prodName').innerText = globalProduct.product_name || "Tasty Treat";
+        const cat = globalProduct.categories ? globalProduct.categories.split(',')[0].toLowerCase() : "snack";
+        document.getElementById('prodVibe').innerText = `Wow, this ${cat} looks yummy! It will definitely add some flavor (and nutrients) to your day! ✨`;
+
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        Object.keys(nutrientMeta).forEach(key => {
+            const val = globalProduct.nutriments[key];
+            if (val !== undefined) {
+                const meta = nutrientMeta[key];
+                const div = document.createElement('div');
+                div.className = 'bento-item';
+                div.onclick = () => {
+                    document.getElementById('detIcon').innerText = meta.icon;
+                    document.getElementById('detTitle').innerText = meta.label;
+                    document.getElementById('detValue').innerText = val.toFixed(4) + meta.unit;
+                    document.getElementById('detAnalysis').innerText = getAnalysis(key, val);
+                    switchScreen('detail-screen');
+                };
+                div.innerHTML = `<span style="font-size:2rem">${meta.icon}</span><b>${meta.label}</b>`;
+                grid.appendChild(div);
+            }
+        });
+        switchScreen('options-screen');
+    }
+
+    // THE FIXED STASH LOGIC
+    function performStashAdd() {
+        if (!globalProduct) return;
+        
+        let stash = JSON.parse(localStorage.getItem('my_stash') || '[]');
+        stash.push({
+            name: globalProduct.product_name || "Unknown Item",
+            price: globalPrice
+        });
+        
+        localStorage.setItem('my_stash', JSON.stringify(stash));
+        alert("Added to Stash! 🛒");
+        location.reload(); // Refresh to show the new stash on Home Screen
+    }
+
+    function clearStash() {
+        if(confirm("Empty your whole stash?")) {
+            localStorage.removeItem('my_stash');
+            updateStashUI();
+        }
+    }
+
+    function updateStashUI() {
+        const stash = JSON.parse(localStorage.getItem('my_stash') || '[]');
+        const list = document.getElementById('stash-items');
+        const total = document.getElementById('stash-total');
+        
+        if(stash.length > 0) {
+            list.innerHTML = stash.map(item => `
+                <div class="stash-item">
+                    <span>${item.name}</span>
+                    <b>$${item.price.toFixed(2)}</b>
+                </div>`).join('');
+            
+            const totalSum = stash.reduce((sum, item) => sum + item.price, 0);
+            total.innerText = `Total: $${totalSum.toFixed(2)}`;
+        } else {
+            list.innerHTML = "Your stash is empty! Scan something to start.";
+            total.innerText = "Total: $0.00";
+        }
+    }
+
+    function switchScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    // Initialize UI on load
+    updateStashUI();
+</script>
+</body>
+</html>
